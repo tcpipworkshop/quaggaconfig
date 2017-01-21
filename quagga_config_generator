@@ -1,4 +1,5 @@
-#!/bin/bash
+!/bin/bash
+
 PREFIX=()
 echo "Enter your AS number: "
 read AS
@@ -13,21 +14,37 @@ do
         echo "Enter your IPv6 prefix: "
         read PRE
         PREFIX+=( $PRE )
-        echo "and more? Y/n"
-        read yn
-        case "$yn" in
-                "Y") continue
-                ;;
-                "y") continue
-                ;;
-                "N") break
-                ;;
-                "n") break
-                ;;
-        esac
+        nnn="0"
+        while true
+        do
+                echo "and more? Y/n"
+                read yn
+                if [ $yn = "Y" ]
+                then
+                        break
+                elif [ $yn = "y" ]
+                then
+                        break
+                elif [ $yn = "N" ]
+                then
+                        nnn="n"
+                        break
+                elif [ $yn = "n" ]
+                then
+                        nnn="n"
+                        break
+                else
+                        echo " !! Enter Y/n !! "
+                fi
+        done
+        if [ $nnn = "n" ]
+        then
+                break;
+        fi
 done
 echo "Enter new config file name: "
 read CONF
+
 cat << EOS > $CONF
 conf t
 router bgp $AS
@@ -40,10 +57,12 @@ router bgp $AS
 !
  address-family ipv6
 EOS
+
 for X in ${PREFIX[@]}
 do
-        echo "network $X" >> $CONF
+        echo " network $X" >> $CONF
 done
+
 cat << EOS >> $CONF
 !
  neighbor IHAnet activate
@@ -58,19 +77,23 @@ access-list restrict-vty permit 127.0.0.1/32
 no ipv6 access-list IHAnet-in
 ipv6 access-list IHAnet-in deny ::/0 exact-match
 EOS
+
 for X in ${PREFIX[@]}
 do
         echo "ipv6 access-list IHAnet-in deny $X" >> $CONF
 done
+
 cat << EOS >> $CONF
 ipv6 access-list IHAnet-in permit any
 no ipv6 access-list IHAnet-out
 ipv6 access-list IHAnet-out deny ::/0 exact-match
 EOS
+
 for X in ${PREFIX[@]}
 do
 echo "ipv6 access-list IHAnet-out permit $X" >> $CONF
 done
+
 cat << EOS >> $CONF
 ipv6 access-list restrict-vty permit ::1/128
 !
@@ -83,3 +106,4 @@ line vty
 !
 end
 EOS
+
