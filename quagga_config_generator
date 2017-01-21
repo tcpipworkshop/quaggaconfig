@@ -1,0 +1,85 @@
+#!/bin/bash
+PREFIX=()
+echo "Enter your AS number: "
+read AS
+echo "Enter your IPv4 endpoint address: "
+read ENDP
+echo "Enter neighbor tunnel address: "
+read TUN
+echo "Enter neighbor AS number: "
+read NAS
+while true
+do
+        echo "Enter your IPv6 prefix: "
+        read PRE
+        PREFIX+=( $PRE )
+        echo "and more? Y/n"
+        read yn
+        case "$yn" in
+                "Y") continue
+                ;;
+                "y") continue
+                ;;
+                "N") break
+                ;;
+                "n") break
+                ;;
+        esac
+done
+echo "Enter new config file name: "
+read CONF
+cat << EOS > $CONF
+conf t
+router bgp $AS
+ bgp router-id $ENDP
+ bgp log-neighbor-changes
+ no bgp default ipv4-unicast
+ bgp graceful-restart
+ neighbor IHAnet peer-group
+ neighbor $TUN remote-as $NAS
+!
+ address-family ipv6
+EOS
+for X in ${PREFIX[@]}
+do
+        echo "network $X" >> $CONF
+done
+cat << EOS >> $CONF
+!
+ neighbor IHAnet activate
+ neighbor IHAnet soft-reconfiguration inbound
+ neighbor IHAnet distribute-list IHAnet-in in
+ neighbor IHAnet distribute-list IHAnet-out out
+ neighbor $TUN peer-group IHAnet
+ exit-address-family
+!
+access-list restrict-vty permit 127.0.0.1/32
+!
+no ipv6 access-list IHAnet-in
+ipv6 access-list IHAnet-in deny ::/0 exact-match
+EOS
+for X in ${PREFIX[@]}
+do
+        echo "ipv6 access-list IHAnet-in deny $X" >> $CONF
+done
+cat << EOS >> $CONF
+ipv6 access-list IHAnet-in permit any
+no ipv6 access-list IHAnet-out
+ipv6 access-list IHAnet-out deny ::/0 exact-match
+EOS
+for X in ${PREFIX[@]}
+do
+echo "ipv6 access-list IHAnet-out permit $X" >> $CONF
+done
+cat << EOS >> $CONF
+ipv6 access-list restrict-vty permit ::1/128
+!
+ip forwarding
+ipv6 forwarding
+!
+line vty
+ access-class restrict-vty
+ ipv6 access-class restrict-vty
+!
+end
+EOS
